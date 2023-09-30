@@ -8,8 +8,9 @@ import time
 """
 Structure of a star with SPH
 """
-
+constant_n=2
 def W(x, y, z, h):
+
 	"""
     3D Gausssian Smoothing kernel
 	x : vector/matrix of x positions
@@ -20,6 +21,7 @@ def W(x, y, z, h):
 	"""
 	r = sqrt(x**2 + y**2 + z**2)
 	w = (1. / (h*sqrt(pi)))**3 * exp(-(r/h)**2)
+	
 	return w
 	
 	
@@ -62,10 +64,11 @@ def PairwiseSeparations(ri, rj):
 	rjz = rj[:,2].reshape((1,N))
 	
 	# matrices that store all pairwise particle separations: r_i - r_j
+
 	dx = rix - rjx
 	dy = riy - rjy
 	dz = riz - rjz
-	
+
 	return dx, dy, dz
 	
 
@@ -78,9 +81,12 @@ def Density( r, pos, m, h ):
 	h   : smoothing length
 	rho : M x 1 vector of accelerations
 	"""
+
+
 	M = r.shape[0]
 	dx, dy, dz = PairwiseSeparations( r, pos )
 	rho = sum( m * W(dx, dy, dz, h), 1 ).reshape((M,1))
+
 	return rho
 	
 	
@@ -129,9 +135,12 @@ def Acceleration( pos, vel, m, h, k, n, lmbda, nu ):
 	az = - sum( m * ( P/rho**2 + P.T/rho.T**2  ) * dWz, 1).reshape((N,1))
 	
 	# pack together the acceleration components
+	
 	a = hstack((ax,ay,az))
 
 	# Add gravtiational force
+	# print("gravForce")
+	# print(gravForce(lmbda, pos))
 	a += gravForce(lmbda, pos)
 	
 	# Add viscosity force
@@ -160,7 +169,7 @@ def RealTimePlot( data, rho_data, density_data, rho_analytic ):
 	grid = plt.GridSpec(3, 1, wspace=0.0, hspace=0.3)
 	ax1 = plt.subplot(grid[0:2,0])
 	ax2 = plt.subplot(grid[2,0])
-	rlin = np.linspace(0,1,100)
+	rlin = np.linspace(0,1,constant_n)
 
 	for i in range(data.shape[0]):
 		plt.sca(ax1)
@@ -213,27 +222,29 @@ def main():
 	# Generate Initial Conditions
 	np.random.seed(413)            # set the random number generator seed
 	
-	lmbda = 2*k*(1+n)*np.pi**(-3/(2*n)) * (M*gamma(5/2+n)/R**3/gamma(1+n))**(1/n) / R**2  # ~ 2.01
+	lmbda = 2*k*(1+n)*np.pi**(-3/(2*n)) * (M*gamma(5/2+n)/  R**3  /   gamma(1+n))**(1/n) / R**2  # ~ 2.01
+	
+	# print("lambda = ", lmbda)
 	m     = M/N                    # single particle mass
 	pos   = np.random.randn(N,3)   # randomly selected positions and velocities
 	vel   = np.zeros(pos.shape)
-	#print('lambda = ', lmbda)
-	#print('m = ', m)
+
 
 	# calculate initial gravitational accelerations
 	acc = Acceleration( pos, vel, m, h, k, n, lmbda, nu )
-
+	
 	# number of timesteps
 	Nt = int(np.ceil(tEnd/dt))
 	
-	rr = np.zeros((100,3))
-	rlin = np.linspace(0,1,100)
+	rr = np.zeros((constant_n,3))
+	rlin = np.linspace(0,1,constant_n)
 	rr[:,0] = rlin
 	rho_analytic = lmbda/(4*k) * (R**2 - rlin**2)
-	
-	data = np.zeros([Nt, N, 3])
+	data_acc = np.zeros([Nt, N, 3])
+	data_pos = np.zeros([Nt, N, 3])
+	data_acc[0,:,:] = acc
 	rho_data = np.zeros([Nt, N])
-	density_data = np.zeros([Nt, 100])
+	density_data = np.zeros([Nt, constant_n])
 
 	# Simulation Main Loop
 	for i in range(Nt):
@@ -250,14 +261,16 @@ def main():
 		t += dt
 
 		rho = Density( pos, pos, m, h )
-		data[i,:,:] = pos
+		data_pos[i,:,:] = pos
+		data_acc[i,:,:] = acc
 		rho_data[i] = rho.reshape(N,)
 
-		density_data[i,:] = Density( rr, pos, m, h ).reshape((100,))
+		density_data[i,:] = Density( rr, pos, m, h ).reshape((constant_n,))
 		sys.stdout.write("\rStep # %d" %i)
 		sys.stdout.flush()
+		
 	    
-	return data, rho_data, density_data, rho_analytic
+	return data_pos,data_acc, rho_data, density_data, rho_analytic
 
 
 	
@@ -265,11 +278,11 @@ def main():
 if __name__== "__main__":
 	print('\n Starting SPH Simulation \n')
 	start_time = time.time()
-	data, rho_data, density_data, rho_analytic = main()
-	print()
+	data,data_acc, rho_data, density_data, rho_analytic = main()
 	print("--- Execution Time : %s seconds ---" % (time.time() - start_time))
 	np.save('data/data.npy', data)
+	np.save('data/data_acc.npy',data_acc)
 	np.save('data/rho_data.npy', rho_data)
 	np.save('data/density_data.npy', density_data)
 	np.save('data/rho_analytic.npy', rho_analytic)
-	#RealTimePlot(data, rho_data, density_data, rho_analytic)
+	# RealTimePlot(data, rho_data, density_data, rho_analytic)
