@@ -1,2 +1,8 @@
 
 cpp_code/.vscode/settings.json
+cpp_code/SFML/.gitattributes
+*.dll
+cpp_code/SFML/src/*
+
+cpp_code/a.exe
+cpp_code/a.exe
