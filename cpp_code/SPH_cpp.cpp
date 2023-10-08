@@ -11,10 +11,11 @@ using namespace std;
 
 int N0 = 100; 		// ! ??
 
-const int N = 1; 		// Number of particles
+const int N = 1000; 		// Number of particles
 double t = 0; 		// current time 
-double tMax = 1; 	// maximum time
+double tMax = 10; 	// maximum time
 double dt = 0.04; 	// time step
+double dt_2=dt/2; 	// half time step
 int nStep = tMax/dt; // number of steps
 double M = 2; 		// star mass
 double R = 0.75; 		// star radius
@@ -38,6 +39,9 @@ arma::mat vel=arma::zeros(N,d); // velocity matrix. jsdoc
 
 int main()
 	{
+		// measure the time it takes to run the code
+		auto start = std::chrono::high_resolution_clock::now();
+
 
 		Crandom rand64(1);	// random number generator
 		arma::mat acc=Acceleration(pos,vel,M0,h,k,n,lambda,nu,rand64);
@@ -53,14 +57,22 @@ int main()
 		// std::cout<<"x\n";
 		for(int ii=0; ii<nStep;ii++)
 			{
-				acc.print();
-				vel += acc*dt/2;
+				// acc.print();
+				vel += acc*dt_2;
 				pos += vel*dt;
 				acc=Acceleration(pos,vel,M0,h,k,n,lambda,nu,rand64);
-				vel += acc*dt/2;
+				vel += acc*dt_2;
 
 				t += dt;
 
-				data.row(ii)=pos;			
+				// data.row(ii)=pos;		
+
+				displayProgressBar(float(ii)/float(nStep));
+				// std::cout<<ii<<"\n";
+				
 			}
+
+		auto finish = std::chrono::high_resolution_clock::now();
+		std::chrono::duration<double> elapsed = finish - start;
+		std::cout << "\nElapsed time: " << elapsed.count() << " s\n";
 	}

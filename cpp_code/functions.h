@@ -11,7 +11,8 @@ arma::mat subtract_vectors(arma::colvec a, arma::rowvec b)
 		arma::mat c = arma::zeros(a.n_elem,b.n_elem);
 		c.each_col() += a;
 		c.each_row() -= b;
-		// std::cout<<"y1\n";
+		auto end = std::chrono::high_resolution_clock::now();
+
 		return c ;
 	}
 /// @brief Reproduces the behaviour of numpy's when adding a row vector from a column vector. Returns the matrix of a+b
@@ -134,24 +135,13 @@ arma::mat viscous_force(arma::mat velocity, double nu)
 /// @return The x,y,z components of the acceleration of the particles
 arma:: mat Acceleration( arma::mat pos,arma::mat vel, double M0, double h,double k, double n, double lambda, double nu,Crandom & rand64)
 	{
-
-		// arma::mat acc=arma::zeros(pos.n_rows,pos.n_cols);
-
 		int N=pos.n_rows;
-		//std::cout<<"y\n";
 		arma::mat rho=Density(pos,pos,M0,h);
-		// rho.print(); // tested- da bien
 		arma::mat P=Pressure(rho,k,n);
-		//std::cout<<"y\n";
 		arma::cube dq=PairwiseDistance(pos,pos);
-
-
 		arma::cube gradW=gradiant(dq,h);
 
-
-		arma::mat term1=M0*sum_vectors(
-			 P/arma::pow(rho,2), P.t()/arma::pow(rho.t(),2) 
-		);		
+		arma::mat term1=M0*sum_vectors(P/arma::pow(rho,2), P.t()/arma::pow(rho.t(),2));		
 		
 		arma::vec pressure_acc_x= - arma::reshape(arma::sum(term1*gradW.slice(0),1),N,1);
 		arma::vec pressure_acc_y= - arma::reshape(arma::sum(term1*gradW.slice(1),1),N,1);
@@ -159,14 +149,8 @@ arma:: mat Acceleration( arma::mat pos,arma::mat vel, double M0, double h,double
 		
 		arma::mat acc=arma::join_rows(pressure_acc_x,pressure_acc_y);
 		acc=arma::join_horiz(acc,pressure_acc_z);
-		// acc.print("pre gravity");
-		// std::cout<<acc.size()<<std::endl;
 		acc+=gravity_force(pos,lambda);
-		// gravity_force(pos,lambda).print("gravity");
 		acc+=viscous_force(vel,nu);
-
-
-
 
 		return acc;
 	}
@@ -205,6 +189,23 @@ void fill_arma_random(arma::vec & vec,Crandom rand64)
 			{
 				vec(ii)=rand64.r();
 			}
+	}
+
+void displayProgressBar(float progress, int barWidth = 50, std::string line="=")
+	{
+		std::cout << "[";
+		int pos = static_cast<int>(progress * barWidth);
+		for (int i = 0; i < barWidth; ++i) 
+			{
+				if (i < pos)
+					{std::cout << line;}
+				else if (i == pos)
+					{std::cout << ">";}
+				else
+					{std::cout << " ";}
+			}
+		std::cout << "] " << static_cast<int>(progress * 100.0)<< "%\r";
+		std::cout.flush();
 	}
 
 
