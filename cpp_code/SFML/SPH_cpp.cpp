@@ -1,5 +1,6 @@
 #include <cmath>
 #include <iostream>
+#include <fstream>
 #include <SFML/Window.hpp>
 #include <SFML/Graphics.hpp>
 #include <SFML/System.hpp>	// To threads in SFML
@@ -7,7 +8,28 @@
 #include "Vector.h"
 using namespace std;
 
+ofstream salida;
+
 double G=50;
+
+const int N_particles=50;		// Number of particles
+double t     = 0;  		// current time of the simulation
+double tEnd  = 12; 		// time at which simulation ends
+double dt    = 0.04;   	// timestep
+double M     = 2;  		// star mass
+double R     = 0.75;  	// star radius
+double h     = 0.1;  	// smoothing length
+double k     = 0.1;  	// equation of state constant
+double n     = 1;  		// polytropic index
+double nu    = 0.2;  		// damping
+double lambda=  (2.*k*(1.+n)* pow(M_PI,-3./(2.*n)) / (R*R)) * pow(M*tgamma(5./2.+n) / (R*R*R*tgamma(1.+n)), 1./n);
+double h2	= h*h;		// h^2
+double W_c	= pow(1.f/(h*sqrt(M_PI)),3);	// Constant for the smoothing kernel
+double Cd   = 1.f/(4*M_PI*h2*h);	// Constant for the smoothing kernel
+
+// TODO a velocity map to show the velocity of the particles to capture a range of color
+
+
 
 
 sf::Color HSV_color(float H, float S, float V)
@@ -43,6 +65,7 @@ sf::Color HSV_color(float H, float S, float V)
 	return color;
 }
 
+
 class Particle
 {
 	public:
@@ -54,20 +77,20 @@ class Particle
 			{
 				pos.show();
 			}	
-		void start(Crandom & rand64, float max_radius=100, bool random_vel=false,bool random_acc=false)
+		void start(Crandom & rand64, float max_radius=100, bool random_vel=false,bool random_acc=false, float max_vel=1, float max_acc=1)
 			{
-				pos.x = (rand64.r()-1)*max_radius;
-				pos.y = (rand64.r()-1)*max_radius;
-				pos.z = (rand64.r()-1)*max_radius;
-				pos.show();
+				pos.x = (rand64.r()-0.5)*max_radius;
+				pos.y = (rand64.r()-0.5)*max_radius;
+				pos.z = (rand64.r()-0.5)*max_radius;
+				// pos.show();
 				vel.load(0,0,0);
 				acc.load(0,0,0);
 
 				if(random_vel)
 					{
-						vel.x = rand64.r();
-						vel.y = rand64.r();
-						vel.z = rand64.r();
+						vel.x = rand64.r()*max_vel;
+						vel.y = rand64.r()*max_vel;
+						vel.z = rand64.r()*max_vel;
 					}
 
 				if(random_acc)
@@ -78,6 +101,7 @@ class Particle
 					}
 				mass=1;
 			}
+
 
 		vector3D<double> force()
 			{
@@ -94,46 +118,210 @@ class Particle
 			{	
 				vector3D<double> f=force();
 
-				// pos.show_2();
-				// vel.show_2();
-				// f.show();
-				// std::cout<<"------\n";
 				acc=f/mass;
 				vel+=acc*dt;
 				pos+=vel*dt;
 			}
 		void show_SFML(sf::RenderWindow & window,double x_screen, double y_screen,float scale)
 			{
-				sf::CircleShape shape(10.f*scale);
+				sf::CircleShape shape(6.f*scale);
 				// vel.show();
-				shape.setFillColor(HSV_color(vel.norm()*10,0.8,0.8));
+				shape.setFillColor(HSV_color(vel.norm()/2,0.8,0.8));
+				// shape.setFillColor(sf::Color::White);
 				shape.setPosition((pos.x*scale)+x_screen,pos.y*scale+y_screen);
 				window.draw(shape);
 			}
 
-
+		friend class Interact;
 
 };
 
 
+class Interact
+	{
+		public:
+
+			double Densities[N_particles];
+			double Preasures[N_particles];
+
+
+			double smoothing_kernel(vector3D<double> r)
+				{
+					double q=r.norm();
+					double val=0;
+					double q_2=2-q;
+					double q_1=1-q;
+					if(0<=q<=1){val=q_2*q_2*q_2  -  4*(q_1*q_1*q_1);}
+					else if(1<=q<=2){val=q_2*q_2*q_2;}
+					else{
+						try{
+							throw std::runtime_error("Error in smothing_kernel2: q out of range. r.norm()<0");
+						}
+						catch(const std::exception& e){
+							std::cerr << e.what() << '\n';
+						}
+					}
+					return Cd*val;
+				}
+
+			vector3D<double> smoothing_derivative(vector3D<double> distance)
+				{
+					double q=distance.norm();
+					double val=0;
+
+					if(0<q && q<1)
+						{val=9*(q*q)-12*q;}
+					else if(1<q && q<2)
+						{val=-3*(2-q)*(2-q);}
+					
+					else
+						{	
+							val=0;
+							return val*distance;
+						}
+					
+					return Cd*val*unit(distance);
+				}
+
+			double Density(Particle * particles ,vector3D<double> position)
+				{
+					double density=0;
+					for(int ii=0; ii<N_particles; ii++)
+						{density+=particles[ii].mass*smoothing_kernel(position-particles[ii].pos);}
+
+					return density;
+				}
+
+			double Preasure(double density)
+				{
+					return k*pow(density,1.f+1.f/n);
+				}
+
+			void Calculate_properties(Particle * particles)
+				{
+					for(int ii=0; ii<N_particles; ii++)
+						{
+							Densities[ii]=Density(particles,particles[ii].pos);
+							Preasures[ii]=Preasure(Densities[ii]);
+						}
+				}
+
+			vector3D<double> gravity_force(vector3D<double> pos, int index)   
+				{	
+					return -lambda*pos;
+				}
+			vector3D<double> viscous_force(vector3D<double> vel)   {return -nu*vel;}
+
+			vector3D<double> particle_interactions(Particle * particles, int index)
+			{
+				vector3D<double> acc(0,0,0);
+				vector3D<double> gradient(0,0,0);
+				
+				for(int jj=0; jj<N_particles; jj++)
+					{	
+						if(jj!=index){
+						// std::cout<<"jj="<<jj<<"\t"<<"index="<<index<<"\n";
+						// acc.show();
+						gradient=smoothing_derivative(particles[index].pos-particles[jj].pos);
+						// gradient.show();
+						acc-=particles[jj].mass*Preasures[jj]/Densities[jj]*gradient;
+						// acc.show();
+						acc-=Preasures[index]/Densities[index]*gradient;	
+						// acc.show();
+						if(Preasures[jj]/Densities[jj])
+							{
+								// std::cout<<"Particle interactions:\n";
+								std::cout<<"Preasures[jj]/Densities[jj]="<<Preasures[jj]/Densities[jj]<<"\n";
+							}
+						}
+						
+					}
+				
+				if (gradient.norm()>1e5)
+					{
+						std::cout << "Particle interactions:\n";
+						std::cout << "gradient.norm()=" << gradient.norm() << "\n";
+					}
+				if(acc.norm()>1e5)
+					{	
+						// std::cout<<"Particle interactions:\n";
+						std::cout<<"acc.norm()="<<acc.norm()<<"\n";
+					}
+				return acc;
+			}
+
+			void time_step(Particle * particles, double dt)
+				{	
+					Calculate_properties(particles);
+					vector3D<double> pos_prev(0,0,0);
+					vector3D<double> vel_prev(0,0,0);
+					vector3D<double> acc_prev(0,0,0);
+					vector3D<double> grav_prev(0,0,0);
+					for(int ii=0;ii<N_particles;ii++)
+						{	
+							// std::cout<<"ii="<<ii<<"\t";
+
+							if (ii==33)
+								{
+									// particles[ii].pos.show_2();std::cout<<"\t";
+									// particles[ii].vel.show_2();std::cout<<"\t";
+									// particles[ii].acc.show_2();std::cout<<"\n";
+									pos_prev=particles[ii].pos;
+									vel_prev=particles[ii].vel;
+									acc_prev=particles[ii].acc;
+
+								}
+							particles[ii].vel+=particles[ii].acc*dt/2;	// kick
+							particles[ii].pos+=particles[ii].vel*dt;	// drift
+							particles[ii].acc.load(0,0,0);
+
+							
+							particles[ii].acc=gravity_force(particles[ii].pos, ii);
+							particles[ii].acc+=viscous_force(particles[ii].vel);
+							particles[ii].acc+=particle_interactions(particles,ii);
+
+							if(ii==33)
+								{if(particles[ii].acc.norm()>1e5)
+									{	
+										pos_prev.show_2();std::cout<<"\t";
+										vel_prev.show_2();std::cout<<"\t";
+										acc_prev.show_2();std::cout<<"\t";
+										particles[ii].acc.show_2();std::cout<<"\n";
+									}
+
+								}
+
+							particles[ii].vel+=particles[ii].acc*dt/2;	// kick
+
+						}
+					
+				}
+			
+			
+	};
+
 
 int main()
 	{	
-		int N_particles=1000;
+
+		salida.open("data.csv");
+
+		
 		double t_max=1000;
-		double dt=0.1;
+		double dt=0.001;
 		double N_steps=t_max/dt;
 		int	screen_x=1600;
 		int	screen_y=1200;
 		int t_current=0;
 		sf::RenderWindow window(sf::VideoMode(screen_x, screen_y), "SFML Window");
 
+		Interact interaction;
 		Particle particle[N_particles];
-		Crandom rand64(1);
+		Crandom rand64(3);
 
 		for(int ii=0; ii<N_particles; ii++)
 			{
-				particle[ii].start(rand64,500.0F,true);
+				particle[ii].start(rand64,100.0F,true,false,100);
 			}
 
 
@@ -158,16 +346,18 @@ int main()
 
 
 
+			interaction.time_step(particle,dt);
 			for(int ii=0; ii<N_particles; ii++)
-				{	
-					// particle.show_pos();
-					particle[ii].move(dt);
-					particle[ii].show_SFML(window,screen_x/2,screen_y/2,0.5);
+				{
+					particle[ii].show_SFML(window,screen_x/2,screen_y/2,2);
+					salida<<t_current<<","<<particle[0].pos.x<<"\t"<<particle[0].vel.x<<"\t"<<particle[0].acc.x<<"\n";
 				}
 
 			// window.draw(...);
 
 
 			window.display();
+			sf::sleep(sf::milliseconds(5));
 		}
+	salida.close();
 	}
