@@ -12,16 +12,16 @@ ofstream salida;
 
 double G=50;
 
-const int N_particles=50;		// Number of particles
+const int N_particles=800;		// Number of particles
 double t     = 0;  		// current time of the simulation
 double tEnd  = 12; 		// time at which simulation ends
 double dt    = 0.04;   	// timestep
 double M     = 2;  		// star mass
 double R     = 0.75;  	// star radius
-double h     = 0.1;  	// smoothing length
+double h     = 1;  	// smoothing length
 double k     = 0.1;  	// equation of state constant
 double n     = 1;  		// polytropic index
-double nu    = 0.2;  		// damping
+double nu    = 1;  		// damping
 double lambda=  (2.*k*(1.+n)* pow(M_PI,-3./(2.*n)) / (R*R)) * pow(M*tgamma(5./2.+n) / (R*R*R*tgamma(1.+n)), 1./n);
 double h2	= h*h;		// h^2
 double W_c	= pow(1.f/(h*sqrt(M_PI)),3);	// Constant for the smoothing kernel
@@ -72,6 +72,8 @@ class Particle
 
 		vector3D<double> pos, vel, acc;
 		double mass;
+		double preasure;
+		double density;
 
 		void show_pos(void)
 			{
@@ -122,11 +124,11 @@ class Particle
 				vel+=acc*dt;
 				pos+=vel*dt;
 			}
-		void show_SFML(sf::RenderWindow & window,double x_screen, double y_screen,float scale)
+		void show_SFML(sf::RenderWindow & window,double x_screen, double y_screen,float scale, float radius)
 			{
-				sf::CircleShape shape(6.f*scale);
+				sf::CircleShape shape(radius*scale);
 				// vel.show();
-				shape.setFillColor(HSV_color(vel.norm()/2,0.8,0.8));
+				shape.setFillColor(HSV_color(density*50,0.8,0.8));
 				// shape.setFillColor(sf::Color::White);
 				shape.setPosition((pos.x*scale)+x_screen,pos.y*scale+y_screen);
 				window.draw(shape);
@@ -151,10 +153,18 @@ class Interact
 					double val=0;
 					double q_2=2-q;
 					double q_1=1-q;
-					if(0<=q<=1){val=q_2*q_2*q_2  -  4*(q_1*q_1*q_1);}
-					else if(1<=q<=2){val=q_2*q_2*q_2;}
+					if(0<=q && q<=1)
+						{val=q_2*q_2*q_2  -  4*(q_1*q_1*q_1);}
+					else if(1<=q && q<=2)
+						{val=q_2*q_2*q_2;}
+
+					else if(q>2)
+						{val=0;}
+
 					else{
 						try{
+							r.show();
+							std::cout<<r.norm()<<"\n";
 							throw std::runtime_error("Error in smothing_kernel2: q out of range. r.norm()<0");
 						}
 						catch(const std::exception& e){
@@ -189,6 +199,7 @@ class Interact
 					for(int ii=0; ii<N_particles; ii++)
 						{density+=particles[ii].mass*smoothing_kernel(position-particles[ii].pos);}
 
+					
 					return density;
 				}
 
@@ -202,7 +213,9 @@ class Interact
 					for(int ii=0; ii<N_particles; ii++)
 						{
 							Densities[ii]=Density(particles,particles[ii].pos);
+							particles[ii].density=Densities[ii];
 							Preasures[ii]=Preasure(Densities[ii]);
+							particles[ii].preasure=Preasures[ii];
 						}
 				}
 
@@ -226,13 +239,15 @@ class Interact
 						// gradient.show();
 						acc-=particles[jj].mass*Preasures[jj]/Densities[jj]*gradient;
 						// acc.show();
-						acc-=Preasures[index]/Densities[index]*gradient;	
+						acc-=Preasures[index]/Densities[index]*gradient;
+						// std::cout<<"Preasures["<<index<<"] = "<<Preasures[index]<<"\t" <<"Densities["<<index<<"] = "<<Densities[index]<<"\n";
+
 						// acc.show();
-						if(Preasures[jj]/Densities[jj])
-							{
-								// std::cout<<"Particle interactions:\n";
-								std::cout<<"Preasures[jj]/Densities[jj]="<<Preasures[jj]/Densities[jj]<<"\n";
-							}
+						// if(Preasures[jj]/Densities[jj])
+						// 	{
+						// 		// std::cout<<"Particle interactions:\n";
+						// 		std::cout<<"Preasures[jj]/Densities[jj]="<<Preasures[jj]/Densities[jj]<<"\n";
+						// 	}
 						}
 						
 					}
@@ -261,19 +276,19 @@ class Interact
 						{	
 							// std::cout<<"ii="<<ii<<"\t";
 
-							if (ii==33)
-								{
-									// particles[ii].pos.show_2();std::cout<<"\t";
-									// particles[ii].vel.show_2();std::cout<<"\t";
-									// particles[ii].acc.show_2();std::cout<<"\n";
-									pos_prev=particles[ii].pos;
-									vel_prev=particles[ii].vel;
-									acc_prev=particles[ii].acc;
+							// if (ii==33)
+							// 	{
+							// 		// particles[ii].pos.show_2();std::cout<<"\t";
+							// 		// particles[ii].vel.show_2();std::cout<<"\t";
+							// 		// particles[ii].acc.show_2();std::cout<<"\n";
+							// 		pos_prev=particles[ii].pos;
+							// 		vel_prev=particles[ii].vel;
+							// 		acc_prev=particles[ii].acc;
 
-								}
+							// 	}
 							particles[ii].vel+=particles[ii].acc*dt/2;	// kick
 							particles[ii].pos+=particles[ii].vel*dt;	// drift
-							particles[ii].acc.load(0,0,0);
+							// particles[ii].acc.load(0,0,0);
 
 							
 							particles[ii].acc=gravity_force(particles[ii].pos, ii);
@@ -281,13 +296,9 @@ class Interact
 							particles[ii].acc+=particle_interactions(particles,ii);
 
 							if(ii==33)
-								{if(particles[ii].acc.norm()>1e5)
-									{	
-										pos_prev.show_2();std::cout<<"\t";
-										vel_prev.show_2();std::cout<<"\t";
-										acc_prev.show_2();std::cout<<"\t";
-										particles[ii].acc.show_2();std::cout<<"\n";
-									}
+								{
+									std::cout<<particles[ii].preasure<<"\t";
+									std::cout<<particles[ii].density<<"\n";
 
 								}
 
@@ -321,7 +332,7 @@ int main()
 
 		for(int ii=0; ii<N_particles; ii++)
 			{
-				particle[ii].start(rand64,100.0F,true,false,100);
+				particle[ii].start(rand64,50.0F,false,false,100);
 			}
 
 
@@ -349,8 +360,8 @@ int main()
 			interaction.time_step(particle,dt);
 			for(int ii=0; ii<N_particles; ii++)
 				{
-					particle[ii].show_SFML(window,screen_x/2,screen_y/2,2);
-					salida<<t_current<<","<<particle[0].pos.x<<"\t"<<particle[0].vel.x<<"\t"<<particle[0].acc.x<<"\n";
+					particle[ii].show_SFML(window,screen_x/2,screen_y/2,50.f,0.1f );
+					// salida<<t_current<<","<<particle[0].pos.x<<"\t"<<particle[0].vel.x<<"\t"<<particle[0].acc.x<<"\n";
 				}
 
 			// window.draw(...);
