@@ -6,7 +6,7 @@
 #include <SFML/System.hpp>	// To threads in SFML
 #include "Random64.h"
 #include "Vector.h"
-using namespace std;
+// using namespace std;
 
 ofstream salida;
 
@@ -25,7 +25,7 @@ double nu    = 1;  		// damping
 double lambda=  (2.*k*(1.+n)* pow(M_PI,-3./(2.*n)) / (R*R)) * pow(M*tgamma(5./2.+n) / (R*R*R*tgamma(1.+n)), 1./n);
 double h2	= h*h;		// h^2
 double W_c	= pow(1.f/(h*sqrt(M_PI)),3);	// Constant for the smoothing kernel
-double Cd   = 1.f/(4*M_PI*h2*h);	// Constant for the smoothing kernel
+double Cd   = 1.f/(4*M_PI*h2*h);			// Constant for the smoothing kernel
 
 // TODO a velocity map to show the velocity of the particles to capture a range of color
 
@@ -44,14 +44,14 @@ sf::Color HSV_color(float H, float S, float V)
 	float B = 0.f;
 
 	switch (static_cast<int>(HPrime))
-	{
-	case 0: R = C; G = X;        break; // [0, 1)
-	case 1: R = X; G = C;        break; // [1, 2)
-	case 2:        G = C; B = X; break; // [2, 3)
-	case 3:        G = X; B = C; break; // [3, 4)
-	case 4: R = X;        B = C; break; // [4, 5)
-	case 5: R = C;        B = X; break; // [5, 6)
-	}
+		{
+			case 0: R = C; G = X;        break; // [0, 1)
+			case 1: R = X; G = C;        break; // [1, 2)
+			case 2:        G = C; B = X; break; // [2, 3)
+			case 3:        G = X; B = C; break; // [3, 4)
+			case 4: R = X;        B = C; break; // [4, 5)
+			case 5: R = C;        B = X; break; // [5, 6)
+		}
 
 	R += M;
 	G += M;
@@ -75,10 +75,8 @@ class Particle
 		double preasure;
 		double density;
 
-		void show_pos(void)
-			{
-				pos.show();
-			}	
+		void show_pos(void){pos.show();}
+		
 		void start(Crandom & rand64, float max_radius=100, bool random_vel=false,bool random_acc=false, float max_vel=1, float max_acc=1)
 			{
 				pos.x = (rand64.r()-0.5)*max_radius;
@@ -110,6 +108,7 @@ class Particle
 				vector3D<double> force(0,0,0);
 				if (pos.norm2()<0.1)
 					{return force;}
+
 				double r2=pos.norm();
 				force=-unit(pos)*G/(1+r2);
 				
@@ -118,9 +117,6 @@ class Particle
 
 		void move(double dt)
 			{	
-				vector3D<double> f=force();
-
-				acc=f/mass;
 				vel+=acc*dt;
 				pos+=vel*dt;
 			}
@@ -128,7 +124,7 @@ class Particle
 			{
 				sf::CircleShape shape(radius*scale);
 				// vel.show();
-				shape.setFillColor(HSV_color(density*50,0.8,0.8));
+				shape.setFillColor(HSV_color(density*36,0.8,0.8));
 				// shape.setFillColor(sf::Color::White);
 				shape.setPosition((pos.x*scale)+x_screen,pos.y*scale+y_screen);
 				window.draw(shape);
@@ -274,18 +270,7 @@ class Interact
 					vector3D<double> grav_prev(0,0,0);
 					for(int ii=0;ii<N_particles;ii++)
 						{	
-							// std::cout<<"ii="<<ii<<"\t";
 
-							// if (ii==33)
-							// 	{
-							// 		// particles[ii].pos.show_2();std::cout<<"\t";
-							// 		// particles[ii].vel.show_2();std::cout<<"\t";
-							// 		// particles[ii].acc.show_2();std::cout<<"\n";
-							// 		pos_prev=particles[ii].pos;
-							// 		vel_prev=particles[ii].vel;
-							// 		acc_prev=particles[ii].acc;
-
-							// 	}
 							particles[ii].vel+=particles[ii].acc*dt/2;	// kick
 							particles[ii].pos+=particles[ii].vel*dt;	// drift
 							// particles[ii].acc.load(0,0,0);

@@ -4,8 +4,9 @@
 
 
 # Make file
-MAIN = SPH_cpp
+MAIN = soft_sfml
 MAIN_CPP = $(MAIN).cpp
+
 MAIN_OUT=$(MAIN).out
 
 #OpenMP
