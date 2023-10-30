@@ -6,7 +6,9 @@
 #include <SFML/System.hpp>	// To threads in SFML
 #include "Random64.h"
 #include "Vector.h"
+#include <chrono>
 
+ofstream times;
 
 // Define bounds
 const double Lx = 500;
@@ -22,8 +24,8 @@ const float target_density=1;
 // double R     = 0.75;  	// star radius
 
 const double G = 50;
-float draw_radius=10;
-const int N_particles=100;
+float draw_radius=5;
+const int N_particles=1400;
 // //double Cd   = 1.f/(4*M_PI*h2*h);	// Constant for the smoothing kernel
 float grav_const=1;
 bool central_force=false;
@@ -294,7 +296,7 @@ class Interact
 						particle.pos.z=-half_Lz;
 						particle.vel.z*=-1;
 					}
-					
+
 
 			}
 		
@@ -366,8 +368,13 @@ int main()
 		int	screen_x=1600;
 		int	screen_y=1200;
 		
+		times.open("runtime.txt",std::ios::app);
+
 		float scale=1;
 		int t_current=0;
+
+		int t_max=5000;
+		double frame_runtime[t_max];
 		sf::RenderWindow window(sf::VideoMode(screen_x, screen_y), "SFML Window");
 		Crandom rand64(1);
 		Particle particle[N_particles];
@@ -380,7 +387,8 @@ int main()
 
 		Interact interaction(Lx,Ly,screen_x,screen_y,scale);
 		while (window.isOpen())
-		{
+		{	
+			
 			t_current++;
 			
 			sf::Event event;
@@ -391,13 +399,20 @@ int main()
 				
 			}
 
-			//- Update here -
 
+			if(t_current==t_max)
+				{
+					window.close();
+				}
+
+			// - Update here -
+			auto start_time = std::chrono::high_resolution_clock::now();
 			interaction.time_step(particle,dt);
-			//- end update -
+			auto end_time = std::chrono::high_resolution_clock::now();
+			// - end update -
+			auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
 
-
-			
+			frame_runtime[t_current]=duration.count();
 			window.clear(sf::Color::Black);// Clear the window with a black color
 
 			// - Draw here -
@@ -412,6 +427,18 @@ int main()
 			window.display();
 
 			
-			sf::sleep(sf::milliseconds(50));
+			// sf::sleep(sf::milliseconds(5));
+
 		}
+
+		double avg=0;
+		for(int ii=0;ii<t_max;ii++)
+			{
+				avg+=frame_runtime[ii];
+			}
+
+
+		times<<N_particles<<","<<avg/t_max<<"\n";
+		// times<<N_particles<<","<< <<"\n";
+		times.close();
 	}

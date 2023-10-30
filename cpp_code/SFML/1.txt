@@ -1,2 +1,0 @@
-\frac{d\vec{v}_i}{dt} = 
-&- \sum_{j\neq i} m_j\frac{P_j}{\rho_j^2} \vec{\nabla} W(\vec{r} _i - \vec{r}_j;h) - \frac{P_i}{\rho_i^2} \sum_{j\neq i} m_j \vec{\nabla} W(\vec{r}_i - \vec{ r}_j;h) + \frac{1}{\rho_i} \vec{f}_i
