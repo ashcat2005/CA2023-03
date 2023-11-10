@@ -18,30 +18,34 @@ const float half_Lx = Lx/2;
 const float half_Ly = Ly/2;
 const float half_Lz = Lz/2;
 
+
+
+bool central_force=false;
+// Define constants for liquid- this only works for not central force
 const float preasure_multiplier=100;
 const float target_density=1;
-
-// double R     = 0.75;  	// star radius
-
 const double G = 50;
+float grav_const=10;
+// Define constants for drawing
 float draw_radius=5;
+float scale=1;
+
+// Define constants for simulation
 const int N_particles=1400;
-// //double Cd   = 1.f/(4*M_PI*h2*h);	// Constant for the smoothing kernel
-float grav_const=1;
-bool central_force=false;
+
 
 double tEnd  = 12; 		// time at which simulation ends
 double dt    = 0.04;   	// timestep
 double M     = 2;  		// star mass
 double R     = 0.75;  	// star radius
-double h     = 1;  	// smoothing length
+double h     = 1;  		// smoothing length
 double k     = 0.1;  	// equation of state constant
 double n     = 1;  		// polytropic index
 double nu    = 1;  		// damping
 double lambda=  (2.*k*(1.+n)* pow(M_PI,-3./(2.*n)) / (R*R)) * pow(M*tgamma(5./2.+n) / (R*R*R*tgamma(1.+n)), 1./n);
 double h2	= h*h;		// h^2
 double W_c	= pow(1.f/(h*sqrt(M_PI)),3);	// Constant for the smoothing kernel
-double Cd   = 1.f/(4*M_PI*h2*h);	// Constant for the smoothing kernel
+double Cd   = 1.f/(4*M_PI*h2*h);			// Constant for the smoothing kernel
 
 
 sf::Color HSV_color(float H, float S, float V)
@@ -116,31 +120,10 @@ class Particle
 				mass=1;
 			}
 
-
-		vector3D<double> force(bool gravity_on=false)
-			{	vector3D<double> force(0,0,0);
-				if(gravity_on)
-					{
-						
-					if (pos.norm2()<0.1)
-						{return force;}
-
-					double r2=pos.norm();
-					force=-unit(pos)*G/(1+r2);
-					
-					
-					}
-				return force;
-				
-			}
-
 		void show_SFML(sf::RenderWindow & window,double x_screen, double y_screen,float scale, float radius)
 			{
-				 
-				// vel.show();
-				// shape.setFillColor(HSV_color(density*36,0.8,0.8));
-				// std::cout<<pos.x<<std::endl;
-				shape.setFillColor(sf::Color::White);
+				shape.setFillColor(HSV_color(preasure*1000,0.8,0.8));
+				// shape.setFillColor(sf::Color::White);
 				shape.setPosition((pos.x*scale)+x_screen,pos.y*scale+y_screen);
 				window.draw(shape);
 			}
@@ -306,6 +289,7 @@ class Interact
 				float pB=Density_to_preasure(denistyB);
 				return (pA+pB)*0.5f;
 			}
+
 		vector3D<double>  preasure_force(Particle * particles,vector3D<double> position)
 			{
 				vector3D<double> force(0,0,0);
@@ -340,7 +324,7 @@ class Interact
 							particles[ii].pos+=particles[ii].vel*dt;	// drift
 
 							particles[ii].acc=gravity_force(particles[ii].pos, ii);
-							particles[ii].acc+=preasure_force(particles,particles[ii].pos);
+							particles[ii].acc+=preasure_force(particles,particles[ii].pos)/Densities[ii];
 							// particles[ii].vel.show();
 							particles[ii].vel+=particles[ii].acc*dt/2;	// kick
 
@@ -364,16 +348,17 @@ class Interact
 
 
 int main()
-	{
+	{	
+
+		bool measure_time=false;
 		int	screen_x=1600;
 		int	screen_y=1200;
 		
-		times.open("runtime.txt",std::ios::app);
+		if(measure_time)times.open("runtime.txt",std::ios::app);
 
-		float scale=1;
 		int t_current=0;
 
-		int t_max=5000;
+		int t_max=500;
 		double frame_runtime[t_max];
 		sf::RenderWindow window(sf::VideoMode(screen_x, screen_y), "SFML Window");
 		Crandom rand64(1);
@@ -427,18 +412,17 @@ int main()
 			window.display();
 
 			
-			// sf::sleep(sf::milliseconds(5));
+
 
 		}
 
 		double avg=0;
-		for(int ii=0;ii<t_max;ii++)
-			{
-				avg+=frame_runtime[ii];
+		if(measure_time){
+			for(int ii=0;ii<t_max;ii++)
+				{avg+=frame_runtime[ii];}
 			}
 
 
-		times<<N_particles<<","<<avg/t_max<<"\n";
-		// times<<N_particles<<","<< <<"\n";
+		if(measure_time){times<<N_particles<<","<<avg/t_max<<"\n";}
 		times.close();
 	}
