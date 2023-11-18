@@ -306,8 +306,8 @@ int main()
 		double t_max=1000;
 		double dt=0.001;
 		double N_steps=t_max/dt;
-		int	screen_x=1600;
-		int	screen_y=1200;
+		int	screen_x=2600;
+		int	screen_y=2200;
 		int t_current=0;
 		sf::RenderWindow window(sf::VideoMode(screen_x, screen_y), "SFML Window");
 

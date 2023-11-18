@@ -4,7 +4,7 @@
 
 
 # Make file
-MAIN = liquid_SFML
+MAIN = Liquid_SFML
 MAIN_CPP = $(MAIN).cpp
 
 MAIN_OUT=$(MAIN).out
