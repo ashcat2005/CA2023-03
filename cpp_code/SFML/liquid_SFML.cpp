@@ -16,10 +16,14 @@ double h3_1	= 1/(h*h*h);						// 1/h^3
 double h6	= h2*h2*h2;						// h^6
 double Cd   = 8/(M_PI*h2*h);				// Constant for the smoothing kernel
 double spiky_constant=15/(M_PI*h6);			// Constant for the spiky kernel
-const int N_particles=100;
 
+
+const int N_particles=4000;
+
+
+int mid_point=N_particles/2+std::sqrt(N_particles)/4;
 vector3D<double> down_vec(0,-1,0);
-int box_size=10;
+int box_size=20;
 const double Lx = box_size;
 const double Ly = box_size;
 const double Lz = box_size;
@@ -27,7 +31,7 @@ const float half_Lx = Lx/2;
 const float half_Ly = Ly/2;
 const float half_Lz = Lz/2;
 
-
+bool print_cd=false;
 
 float draw_radius=4;
 float scale=100;
@@ -35,8 +39,8 @@ float scale=100;
 float grav_constant=0;
 
 
-float target_density=4;
-float preasure_multiplier=5;
+float target_density=6;
+float preasure_multiplier=50;
 
 sf::Color HSV_color(float H, float S, float V)
 	{
@@ -90,7 +94,7 @@ class Particle
 				pos.x = (rand64.r()-0.5)*max_radius; 	// max_radius is the spawing radius
 				pos.y = (rand64.r()-0.5)*max_radius;
 				pos.z = (rand64.r()-0.5)*max_radius;
-				pos.z = 0;
+				// pos.z = 0;
 				// pos.y = 0;
 				// pos.x = 0;
 
@@ -190,41 +194,46 @@ class Interact
 			{	
 				Update_properties(particles);
 
+				h_1	= 1/h;							// 1/h
+				h2	= h*h;							// h^2
+				h2_1	= 1/h2;							// 1/h^2
+				h3_1	= 1/(h*h*h);						// 1/h^3
+				h6	= h2*h2*h2;						// h^6
+				Cd   = 8/(M_PI*h2*h);				// Constant for the smoothing kernel
+				spiky_constant=15/(M_PI*h6);			// Constant for the spiky kernel
+
+
 				for(int ii; ii<N_particles; ii++)
 					{	
 						particles[ii].acc.load(0,0,0);
 						// particles[ii].acc=down_vec;
 
 						particles[ii].acc+= Calculate_preasure_force(particles,ii)/particles[ii].density;
-						if(ii==0)
-							{particles[ii].acc.show();}
+						if(ii==mid_point)
+							{	
+								print_cd=true;
+								std::cout<<"density: "<<Calculate_density(particles,particles[ii].pos)<<"\n";
+
+								print_cd=false;
+							}
 
 
-						particles[ii].vel+=particles[ii].acc*dt;
-						particles[ii].pos+=particles[ii].vel*dt;
-						
+						particles[ii].vel=particles[ii].acc*dt;
 						bounding_collision(particles[ii]);
 					}
 
-				// for(int ii; ii<N_particles; ii++)
-				// 	{
-				// 		// particles[ii].pos.show_2();
-				// 		particles[ii].acc.show_2();
-				// 		std::cout<<particles[ii].density<<"\t";
-				// 		std::cout<<"----";
-				// 	}
-				
-				
-				// particles[0].acc.show_2();
-				// std::cout<<particles[0].density<<"\t";
-				// (particles[0].pos-particles[1].pos).show_2();
-				// std::cout<<"\n";
 			}
 
 		double spiky_kernel(vector3D<double> r)
 			{
-				double q=r.norm();
-
+				double dist=r.norm();
+				double value=0;
+				double h_dist=h-dist;
+				if(0<dist && dist<=h)
+					{value= h_dist*h_dist*h_dist;}
+				else if (dist>h)
+					{value=0;}
+				
 				else{
 					try{
 						r.show();
@@ -235,6 +244,7 @@ class Interact
 						std::cerr << e.what() << '\n';
 					}
 				}
+				return value*spiky_constant;
 				
 					
 
@@ -242,11 +252,15 @@ class Interact
 			}
 		double smoothing_kernel(vector3D<double> r)
 			{	
+
 				double q=r.norm()*h_1;
 				double val=0;
 				double q_1=1-q;
 				if(0<=q && q<=0.5)
-					{val=6*(q*q*q-q*q)+1;}
+					{val=6*(q*q*q-q*q)+1;
+
+						// if(print_cd)std::cout<<"dist: "<<r.norm()<<"\t"<<"q: "<<q<<"\t"<<"val: "<<val<<"\t"<<"Cd:"<<Cd<<"\n";
+					}
 				else if(0.5<q && q<=1)
 					{val=2*q_1*q_1*q_1;}
 				else if (q>1)
@@ -261,7 +275,9 @@ class Interact
 						catch(const std::exception& e)
 							{std::cerr << e.what() << '\n';}
 					}
+				
 
+				
 				return Cd*val;
 			}
 
@@ -283,7 +299,6 @@ class Interact
 					else
 						{
 							try{
-								// std::cout<<position<<"\n";
 								position.show();
 								std::cout<<position.norm()<<"\n";
 								throw std::runtime_error("Error in smothing_derivative: q out of range. r.norm()<0");
@@ -295,6 +310,29 @@ class Interact
 					
 					return Cd*val*unit(position);	//return a vector
 				}
+		vector3D<double> spiky_gradient(vector3D<double> position)
+			{
+				double dist=position.norm();
+				double value=0;
+				double h_dist=h-dist;
+				
+				if(0<dist && dist<=h)
+					{value= -3*h_dist*h_dist;}
+				else if (dist>h)
+					{value=0;}
+				
+				else{
+					try{
+						position.show();
+						std::cout<<position.norm()<<"\n";
+						throw std::runtime_error("Error in spiky_kernel: q out of range. r.norm()<0");
+					}
+					catch(const std::exception& e){
+						std::cerr << e.what() << '\n';
+					}
+				}
+				return value*spiky_constant*unit(position);
+			}
 
 		vector3D<double> Calculate_gradient(Particle * particles,vector3D<double> sample_position)
 			{
@@ -327,16 +365,14 @@ class Interact
 							{	
 								if(false)
 									{
-										std::cout<<"preasure: ";
 										particles[particle_index].acc.show_2();
-										std::cout<<"\n";	
 									}
 									
 								continue;
 							}
 
 						distance=(particles[ii].pos-sample_position);
-						slope=smoothing_derivative(distance);
+						slope=spiky_gradient(distance);
 						preasure+= -particles[ii].preasure*particles[ii].mass*slope/Densities[ii];
 
 						
@@ -362,6 +398,7 @@ class Interact
 
 		float Calculate_density(Particle * particles,vector3D<double> sample_point)
 			{	
+
 				float density=0;
 				vector3D<double> distance(0,0,0);
 				vector3D<double> position(0,0,0);
@@ -373,8 +410,6 @@ class Interact
 						
 						
 						density+=particles[ii].mass*smoothing_kernel(distance);
-						// std::cout<<distance.norm()<<"\t";
-						// std::cout<<particles[ii].density<<"\n";
 					}
 
 				return density;
@@ -390,8 +425,6 @@ class Interact
 						xd=(ii==0);
 						Densities[ii]=Calculate_density(particles,particles[ii].pos);
 						particles[ii].density=Densities[ii];
-						Preasures[ii]=-Convert_Density_to_preasure(Densities[ii],xd);
-						// std::cout<<"-------\n";
 						particles[ii].preasure=Preasures[ii];
 					}
 			
@@ -401,11 +434,6 @@ class Interact
 			{
 				float denisty_delta=density-target_density;
 				float preasure=preasure_multiplier*denisty_delta;
-				if(xd)
-					{
-					std::cout<<"density: "<<density<<"\t";
-					std::cout<<"preasure: "<<preasure<<"\t"	;
-					}
 
 				return preasure;
 			}
@@ -420,10 +448,14 @@ int main()
 
 		int	screen_x=1600;
 		int	screen_y=1200;
+		sf::CircleShape influence_circle;
+		sf::Color color_influence(100,255,255,50);
 		sf::RenderWindow window(sf::VideoMode(screen_x, screen_y), "SPH_sim");
 		float dt=0.01;
 		int t_current=0;
 		int t_max=100000;
+		bool grid=false;
+		float grid_closeness=0.1;
 		Crandom rand64(1);
 		Interact interaction(Lx,Ly,screen_x,screen_y,scale);
 		Particle particles[N_particles];
@@ -431,6 +463,17 @@ int main()
 		for(int ii=0;ii<N_particles;ii++)
 			{
 				particles[ii].start(rand64,Lx,false,10);
+			}
+		if(grid)
+			{	int L =std::ceil(std::sqrt(N_particles));
+				float x=0;
+				float y=0;
+				for(int ii=0;ii<N_particles;ii++)
+					{	
+						x=ii%L*grid_closeness;
+						y=std::floor((float)ii/L)*grid_closeness;
+						particles[ii].pos.load(x,y,0);
+					}
 			}
 		// particles[0].pos.load(0.2,0,0);
 		// particles[1].pos.load(-0.2,0,0);
@@ -450,13 +493,35 @@ int main()
 				{
 					if (event.type == sf::Event::Closed)
 						window.close();
-					
+					if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::A)) 
+						
+						{
+
+							h+=0.1;
+						}
+					if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Z)) 
+						
+						{
+							h-=0.1;
+							if(h<=0)
+								{h=0.1;}
+
+						}
+					if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Right)) 
+						
+						{
+							mid_point+=1;
+						}
+					if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Left)) 
+						
+						{
+							mid_point-=1;
+						}
+
 				}
 
 				// ---------------------Simulation---------------------
 				interaction.time_step(particles,dt);
-
-
 
 				// ---------------------Drawing---------------------
 				window.clear(sf::Color::Black);
@@ -466,6 +531,15 @@ int main()
 						particles[ii].show_SFML(window,screen_x*0.5,screen_y*0.5,scale,draw_radius);
 
 					}
+
+
+				influence_circle.setRadius(h*scale);
+				influence_circle.setOrigin(h*scale,h*scale);
+
+				influence_circle.setFillColor(color_influence);
+
+				influence_circle.setPosition((particles[mid_point].pos.x*scale)+screen_x*0.5,-particles[mid_point].pos.y*scale+screen_y*0.5);
+				window.draw(influence_circle);
 
 				window.display();
 
