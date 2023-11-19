@@ -1,6 +1,6 @@
 #include<iostream>
 #include<cmath>
-using namespace std;
+
 
 //Constantes del generador aleatorio
 class Crandom{
