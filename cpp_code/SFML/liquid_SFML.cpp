@@ -9,13 +9,17 @@
 #include <chrono>
 
 double h     = 1;  							// smoothing length
+double h_1	= 1/h;							// 1/h
 double h2	= h*h;							// h^2
-double Cd   = 1.f/(4*M_PI*h2*h);			// Constant for the smoothing kernel
-
+double h2_1	= 1/h2;							// 1/h^2
+double h3_1	= 1/(h*h*h);						// 1/h^3
+double h6	= h2*h2*h2;						// h^6
+double Cd   = 8/(M_PI*h2*h);				// Constant for the smoothing kernel
+double spiky_constant=15/(M_PI*h6);			// Constant for the spiky kernel
 const int N_particles=100;
 
 vector3D<double> down_vec(0,-1,0);
-int box_size=5;
+int box_size=10;
 const double Lx = box_size;
 const double Ly = box_size;
 const double Lz = box_size;
@@ -25,13 +29,13 @@ const float half_Lz = Lz/2;
 
 
 
-float draw_radius=3;
+float draw_radius=4;
 float scale=100;
 
 float grav_constant=0;
 
 
-float target_density=1;
+float target_density=4;
 float preasure_multiplier=5;
 
 sf::Color HSV_color(float H, float S, float V)
@@ -111,8 +115,8 @@ class Particle
 
 		void show_SFML(sf::RenderWindow & window,double x_screen, double y_screen,float scale, float radius)
 			{
-				shape.setFillColor(HSV_color(preasure*360/10,0.8,0.8));
-				// shape.setFillColor(sf::Color::White);
+				// shape.setFillColor(HSV_color(preasure*360/10,0.8,0.8));
+				shape.setFillColor(sf::Color::White);
 				shape.setPosition((pos.x*scale)+x_screen,-pos.y*scale+y_screen);
 				window.draw(shape);
 			}
@@ -192,9 +196,11 @@ class Interact
 						// particles[ii].acc=down_vec;
 
 						particles[ii].acc+= Calculate_preasure_force(particles,ii)/particles[ii].density;
-						// particles[ii].acc+=gra
+						if(ii==0)
+							{particles[ii].acc.show();}
 
-						particles[ii].vel=particles[ii].acc*dt;
+
+						particles[ii].vel+=particles[ii].acc*dt;
 						particles[ii].pos+=particles[ii].vel*dt;
 						
 						bounding_collision(particles[ii]);
@@ -209,54 +215,70 @@ class Interact
 				// 	}
 				
 				
-				particles[0].acc.show_2();
-				std::cout<<particles[0].density<<"\t";
-				(particles[0].pos-particles[1].pos).show_2();
-				std::cout<<"\n";
+				// particles[0].acc.show_2();
+				// std::cout<<particles[0].density<<"\t";
+				// (particles[0].pos-particles[1].pos).show_2();
+				// std::cout<<"\n";
 			}
 
-		
-		double smoothing_kernel(vector3D<double> r)
+		double spiky_kernel(vector3D<double> r)
 			{
 				double q=r.norm();
-				double val=0;
-				double q_2=2-q;
-				double q_1=1-q;
-				if(0<=q && q<=1)
-					{val=q_2*q_2*q_2  -  4*(q_1*q_1*q_1);}
-				else if(1<=q && q<=2)
-					{val=q_2*q_2*q_2;}
-
-				else if(q>2)
-					{val=0;}
 
 				else{
 					try{
 						r.show();
 						std::cout<<r.norm()<<"\n";
-						throw std::runtime_error("Error in smothing_kernel2: q out of range. r.norm()<0");
+						throw std::runtime_error("Error in spiky_kernel: q out of range. r.norm()<0");
 					}
 					catch(const std::exception& e){
 						std::cerr << e.what() << '\n';
 					}
 				}
+				
+					
+
+
+			}
+		double smoothing_kernel(vector3D<double> r)
+			{	
+				double q=r.norm()*h_1;
+				double val=0;
+				double q_1=1-q;
+				if(0<=q && q<=0.5)
+					{val=6*(q*q*q-q*q)+1;}
+				else if(0.5<q && q<=1)
+					{val=2*q_1*q_1*q_1;}
+				else if (q>1)
+					{val=0;}
+				else{
+						try
+							{
+								r.show();
+								std::cout<<r.norm()<<"\n";
+								throw std::runtime_error("Error in smothing_kernel: q out of range. r.norm()<0");
+							}
+						catch(const std::exception& e)
+							{std::cerr << e.what() << '\n';}
+					}
+
 				return Cd*val;
 			}
 
 		vector3D<double> smoothing_derivative(vector3D<double> position)
 				{
-					double q=position.norm();
+					double q=position.norm()*h_1;
+					double r=position.norm();
 					double val=0;
 
-					if(0<=q && q<1)
-						{val=9*(q*q)-12*q;}
-					else if(1<q && q<2)
-						{val=-3*(2-q)*(2-q);}
+					if(0<=q && q<=0.5)	// The derivaive of the first condition 
+						{val=18*r*r*h3_1-12*r*h2_1;}
+					else if(0.5<q && q<=1)
+						{val=-6*h3_1*(h-r);}
 					
-					else if (q>2)
+					else if (q>1)
 						{	
 							val=0;
-							return val*position;
 						}
 					else
 						{
@@ -271,7 +293,7 @@ class Interact
 							}
 						}
 					
-					return Cd*val*position;	//return a vector
+					return Cd*val*unit(position);	//return a vector
 				}
 
 		vector3D<double> Calculate_gradient(Particle * particles,vector3D<double> sample_position)
@@ -304,14 +326,15 @@ class Interact
 						if(ii==particle_index)
 							{	
 								if(false)
-								{
-								std::cout<<"preasure: ";
-								particles[particle_index].acc.show_2();
-								std::cout<<"\n";	
-								}
-								
+									{
+										std::cout<<"preasure: ";
+										particles[particle_index].acc.show_2();
+										std::cout<<"\n";	
+									}
+									
 								continue;
 							}
+
 						distance=(particles[ii].pos-sample_position);
 						slope=smoothing_derivative(distance);
 						preasure+= -particles[ii].preasure*particles[ii].mass*slope/Densities[ii];
@@ -347,8 +370,11 @@ class Interact
 					{
 						position=particles[ii].pos;
 						distance=(sample_point-position);
-
+						
+						
 						density+=particles[ii].mass*smoothing_kernel(distance);
+						// std::cout<<distance.norm()<<"\t";
+						// std::cout<<particles[ii].density<<"\n";
 					}
 
 				return density;
@@ -364,7 +390,8 @@ class Interact
 						xd=(ii==0);
 						Densities[ii]=Calculate_density(particles,particles[ii].pos);
 						particles[ii].density=Densities[ii];
-						Preasures[ii]=Convert_Density_to_preasure(Densities[ii],xd);
+						Preasures[ii]=-Convert_Density_to_preasure(Densities[ii],xd);
+						// std::cout<<"-------\n";
 						particles[ii].preasure=Preasures[ii];
 					}
 			
@@ -376,8 +403,8 @@ class Interact
 				float preasure=preasure_multiplier*denisty_delta;
 				if(xd)
 					{
-					std::cout<<"density: "<<density<<"\n";
-					std::cout<<"preasure: "<<preasure<<"\n"	;
+					std::cout<<"density: "<<density<<"\t";
+					std::cout<<"preasure: "<<preasure<<"\t"	;
 					}
 
 				return preasure;
@@ -394,7 +421,7 @@ int main()
 		int	screen_x=1600;
 		int	screen_y=1200;
 		sf::RenderWindow window(sf::VideoMode(screen_x, screen_y), "SPH_sim");
-		float dt=0.001;
+		float dt=0.01;
 		int t_current=0;
 		int t_max=100000;
 		Crandom rand64(1);
@@ -403,8 +430,12 @@ int main()
 
 		for(int ii=0;ii<N_particles;ii++)
 			{
-				particles[ii].start(rand64,1,false,10);
+				particles[ii].start(rand64,Lx,false,10);
 			}
+		// particles[0].pos.load(0.2,0,0);
+		// particles[1].pos.load(-0.2,0,0);
+		// particles[2].pos.load(0,0.2,0);
+		// particles[3].pos.load(0,-0.2,0);
 
 		while (window.isOpen())
 			{	
@@ -433,11 +464,7 @@ int main()
 				for(int ii=0;ii<N_particles;ii++)
 					{
 						particles[ii].show_SFML(window,screen_x*0.5,screen_y*0.5,scale,draw_radius);
-						// if(ii==0)
-						// 	{
-						// 		particles[ii].show_pos();
-						// 		// particles[ii].acc.show();
-						// 	}
+
 					}
 
 				window.display();
