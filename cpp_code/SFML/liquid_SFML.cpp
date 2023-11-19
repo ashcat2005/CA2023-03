@@ -22,7 +22,7 @@ const int N_particles=4000;
 
 
 int mid_point=N_particles/2+std::sqrt(N_particles)/4;
-vector3D<double> down_vec(0,-1,0);
+
 int box_size=20;
 const double Lx = box_size;
 const double Ly = box_size;
@@ -41,7 +41,7 @@ float grav_constant=0;
 
 float target_density=6;
 float preasure_multiplier=50;
-
+vector3D<double> down_vec(0,-1,0);
 sf::Color HSV_color(float H, float S, float V)
 	{
 		float C = S * V; // Chroma
@@ -74,7 +74,7 @@ sf::Color HSV_color(float H, float S, float V)
 
 		return color;
 	}
-// double G=50;
+
 
 class Particle
 {
@@ -98,13 +98,12 @@ class Particle
 				// pos.y = 0;
 				// pos.x = 0;
 
-				// shape(radius*scale);
 				shape.setRadius(draw_radius);
 				shape.setOrigin(draw_radius,draw_radius);
-				// pos.show();
+
 				vel.load(0,0,0);
 				acc.load(0,0,0);
-				// vel.x = 15;
+
 				if(random_vel)
 					{
 						vel.x = rand64.r()-0.5;
