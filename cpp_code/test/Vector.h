@@ -45,6 +45,7 @@ public:
     // v.show()  (show vector)
     inline void show(void){std::cout <<"("<<x<<","<<y<<","<<z<<")\n";}
 	void show_2(){std::cout <<"("<<x<<","<<y<<","<<z<<")\t";}
+
     // +v (addition) operator
     inline vector3D<T> operator+() const {
         return *this;

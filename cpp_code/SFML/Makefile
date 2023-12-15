@@ -4,7 +4,7 @@
 
 
 # Make file
-MAIN = kernel_test
+MAIN = new_liquid_test
 MAIN_CPP = $(MAIN).cpp
 
 MAIN_OUT=$(MAIN).out

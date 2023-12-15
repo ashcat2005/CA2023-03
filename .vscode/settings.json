@@ -61,8 +61,6 @@
 		"streambuf": "cpp",
 		"thread": "cpp",
 		"cinttypes": "cpp",
-		"typeinfo": "cpp",
-		"codecvt": "cpp",
-		"iomanip": "cpp"
+		"typeinfo": "cpp"
 	}
 }
